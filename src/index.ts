@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
 type Bindings = {
-	OPEN_AI_KEY: OpenAI;
+	OPEN_AI_KEY: string;
 	AI: Ai;
 };
 
@@ -21,6 +21,7 @@ app.use(
 	})
 );
 
+// translate and summarize document
 app.post('/translateDocument', async (context) => {
 	const { documentData, targetLang } = await context.req.json();
 	console.log('initial data:', documentData, targetLang);
@@ -42,6 +43,32 @@ app.post('/translateDocument', async (context) => {
 
 	// Return the translated response
 	return new Response(JSON.stringify(response));
+});
+
+// chat to document
+app.post('/chatToDocument', async (context) => {
+	const openai = new OpenAI({
+		apiKey: context.env.OPEN_AI_KEY,
+	});
+	const { documentData, question } = await context.req.json();
+	const chatCompletion = await openai.chat.completions.create({
+		messages: [
+			{
+				role: 'system',
+				content:
+					'you are an assistant helping the user to chat to a document, I am providing an xml document for the file. Be sure to parse the xml and completely understand the document before answering the users question. Using this, answer the users questions in the clearest way possible, the document is about ' +
+					documentData,
+			},
+			{
+				role: 'user',
+				content: 'my question is: ' + question,
+			},
+		],
+		model: 'gpt-4o',
+		temperature: 0.5,
+	});
+	const response = chatCompletion.choices[0].message.content;
+	return context.json({ message: response });
 });
 
 export default app;
